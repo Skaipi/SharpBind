@@ -75,6 +75,23 @@
     </ItemGroup>
   </Target>
 
+  <!-- The Unix Native AOT SDK passes library paths to the shell without quotes.
+       Preserve argument order and flags, and keep NativeLibrary paths unquoted
+       because the SDK also uses those items as incremental build inputs. -->
+  <Target Name="QuoteSharpBindNativeLinkerInputs"
+          BeforeTargets="LinkNative"
+          Condition="'$(_targetOS)' != '' and '$(_targetOS)' != 'win'">
+    <ItemGroup>
+      <_SharpBindLinkerArg Remove="@(_SharpBindLinkerArg)" />
+      <_SharpBindLinkerArg Include="@(LinkerArg)">
+        <QuotedIdentity>%(Identity)</QuotedIdentity>
+        <QuotedIdentity Condition="Exists('%(Identity)')">&quot;%(Identity)&quot;</QuotedIdentity>
+      </_SharpBindLinkerArg>
+      <LinkerArg Remove="@(LinkerArg)" />
+      <LinkerArg Include="@(_SharpBindLinkerArg->'%(QuotedIdentity)')" />
+    </ItemGroup>
+  </Target>
+
   <!-- The helpers ship in NuGet and use the selected interpreter's installed tools.
        They invoke Publish in a separate build with fresh output paths. -->
   <Target Name="SharpBindPackage">
