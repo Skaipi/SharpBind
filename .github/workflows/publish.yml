@@ -1,6 +1,7 @@
 name: Publish SharpBind
 run-name: Publish SharpBind ${{ inputs.version }}
 
+# Start NuGet publishing manually and supply the version to release.
 on:
   workflow_dispatch:
     inputs:
