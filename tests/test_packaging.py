@@ -32,7 +32,7 @@ class PackagingTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="SharpBind package spaces ")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.source_package = self.root / "src/example_api"
         self.source_package.mkdir(parents=True)
         (self.source_package / "__init__.py").write_text(

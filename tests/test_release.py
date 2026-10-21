@@ -16,7 +16,7 @@ class ReleaseTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="SharpBind release spaces ")
         self.addCleanup(temporary.cleanup)
-        self.project = Path(temporary.name)
+        self.project = Path(temporary.name).resolve()
         (self.project / "pyproject.toml").write_text(
             '[tool.sharpbind]\nmodule = "example"\n', encoding="utf-8"
         )
