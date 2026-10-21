@@ -27,7 +27,9 @@ public class BuildIntegrationTests
     public void ManagedBuildGeneratesPythonAndBridgeUsesResolvedNet9Reference(string bridgeFramework)
     {
         string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        string directory = Path.Combine(Path.GetTempPath(), "SharpBind build spaces", Guid.NewGuid().ToString("N"));
+        // macOS aliases /var to /private/var, which can break MSBuild's relative
+        // transitive project references. Keep the test graph under the checkout.
+        string directory = Path.Combine(root, "artifacts", "build-integration", "SharpBind build spaces", Guid.NewGuid().ToString("N"));
         string managed = Path.Combine(directory, "Managed");
         string bridge = Path.Combine(directory, "Bridge");
         Directory.CreateDirectory(managed);
