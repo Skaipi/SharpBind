@@ -1,0 +1,15 @@
+[project]
+name = "PYTHON_DISTRIBUTION"
+version = "0.1.0"
+description = "Python bindings for NativeBindings"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = ["Operating System :: Microsoft :: Windows", "Operating System :: POSIX :: Linux", "Operating System :: MacOS"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src"]
+sources = ["src"]
+exclude = ["**/__pycache__", "**/*.pyc"]
+
+[tool.sharpbind]
+module = "PYTHON_MODULE"

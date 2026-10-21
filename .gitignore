@@ -1,0 +1,35 @@
+# .NET and NuGet build outputs
+**/[Bb]in/
+**/[Oo]bj/
+artifacts/
+**/artifacts/
+*.nupkg
+*.snupkg
+TestResults/
+**/TestResults/
+
+# Editors
+.vs/
+.vscode/
+
+# Generated bindings and Python outputs
+**/Generated/
+**/_native_generated.py
+**/_bindings.py
+**/__pycache__/
+**/dist/
+**/*.egg-info/
+**/.venv/
+.coverage
+
+# DocFX output
+docs/_site/
+docs/obj/
+
+# Python bytecode, extension binaries, and wheels
+*.py[cod]
+*.whl
+
+# Additional generated binding outputs
+**/_bindings.pyi
+**/_native/

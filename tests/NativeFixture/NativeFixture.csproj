@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net$(NETCoreSdkVersion.Split('.')[0]).0</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+    <NativeLib>Shared</NativeLib>
+    <SelfContained>true</SelfContained>
+    <SharpBindInputProject>../Fixture/Fixture.csproj</SharpBindInputProject>
+    <SharpBindStrictDocumentation>true</SharpBindStrictDocumentation>
+    <SharpBindPythonProject>../python</SharpBindPythonProject>
+    <SharpBindGeneratorPath>$(MSBuildThisFileDirectory)../../src/SharpBind.Generator/bin/$(Configuration)/net9.0/SharpBind.Generator.dll</SharpBindGeneratorPath>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <Import Project="../../build/SharpBind.targets" />
+  <ItemGroup>
+    <ProjectReference Include="../Fixture/Fixture.csproj" />
+    <Compile Remove="Generated/**/*.cs" />
+  </ItemGroup>
+</Project>

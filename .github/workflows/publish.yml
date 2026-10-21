@@ -1,0 +1,73 @@
+name: Publish SharpBind
+run-name: Publish SharpBind ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact version committed in SharpBind.csproj
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate release and template versions
+        shell: python
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          import os
+          import xml.etree.ElementTree as ET
+          version = os.environ["RELEASE_VERSION"]
+          project = ET.parse("src/SharpBind/SharpBind.csproj")
+          if project.findtext("PropertyGroup/Version") != version:
+              raise SystemExit("Release version must match SharpBind.csproj exactly.")
+          template = ET.parse("templates/python/native/NativeBindings.csproj")
+          reference = template.find(".//PackageReference[@Include='SharpBind']")
+          if reference is None or reference.get("Version") != f"[{version}]":
+              raise SystemExit("Update the template's SharpBind package pin before release.")
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/wheels.yml
+    with:
+      full_matrix: true
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: nuget
+      url: https://www.nuget.org/packages/SharpBind
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget
+          path: packages
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: NuGet login with OIDC
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+      - name: Publish tested NuGet package
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "packages/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate

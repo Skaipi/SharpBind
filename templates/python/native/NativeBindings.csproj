@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Use the selected SDK's Native AOT version unless the framework is pinned. -->
+    <TargetFramework Condition="'$(TargetFramework)' == ''">net$(NETCoreSdkVersion.Split('.')[0]).0</TargetFramework>
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">$(NETCoreSdkRuntimeIdentifier)</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <SharpBindInputProject>MANAGED_PROJECT_PATH</SharpBindInputProject>
+    <SharpBindPythonProject>..</SharpBindPythonProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="SharpBind" Version="[0.1.0]" />
+    <ProjectReference Include="$(SharpBindInputProject)" />
+  </ItemGroup>
+</Project>

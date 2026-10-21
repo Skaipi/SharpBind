@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SharpBind/SharpBind.csproj" />
+    <Project Path="src/SharpBind.Generator/SharpBind.Generator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SharpBind.Tests/SharpBind.Tests.csproj" />
+    <Project Path="tests/Fixture/Fixture.csproj" />
+    <Project Path="tests/NativeFixture/NativeFixture.csproj" />
+  </Folder>
+</Solution>

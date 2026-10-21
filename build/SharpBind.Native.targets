@@ -1,0 +1,156 @@
+<Project>
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DisableRuntimeMarshalling>true</DisableRuntimeMarshalling>
+    <NativeLib>Shared</NativeLib>
+    <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">enable</ImplicitUsings>
+    <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
+    <OptimizationPreference Condition="'$(OptimizationPreference)' == ''">Speed</OptimizationPreference>
+    <StripSymbols Condition="'$(StripSymbols)' == ''">true</StripSymbols>
+    <IlcTreatWarningsAsErrors Condition="'$(IlcTreatWarningsAsErrors)' == ''">true</IlcTreatWarningsAsErrors>
+    <TrimmerSingleWarn Condition="'$(TrimmerSingleWarn)' == ''">false</TrimmerSingleWarn>
+    <IsPackable>false</IsPackable>
+    <SharpBindNativeOutput Condition="'$(SharpBindNativeOutput)' == ''">$(MSBuildProjectDirectory)/obj/SharpBind/$(Configuration)/$(TargetFramework)/$(RuntimeIdentifier)/Generated</SharpBindNativeOutput>
+    <SharpBindPythonExecutable Condition="'$(SharpBindPythonExecutable)' == ''">python</SharpBindPythonExecutable>
+    <SharpBindPythonProject Condition="'$(SharpBindPythonProject)' == ''">$(MSBuildProjectDirectory)/..</SharpBindPythonProject>
+    <SharpBindPythonToolsPath Condition="'$(SharpBindPythonToolsPath)' == ''">$(MSBuildThisFileDirectory)python</SharpBindPythonToolsPath>
+    <SharpBindLocalWheel Condition="'$(SharpBindLocalWheel)' == ''">false</SharpBindLocalWheel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Update="$(SharpBindInputProject)">
+      <GlobalPropertiesToRemove>%(ProjectReference.GlobalPropertiesToRemove);RuntimeIdentifier;SelfContained;PublishAot;SharpBindPythonModuleName;SharpBindPythonPackageOutput;SharpBindPythonOutput;SharpBindNativeOutput;SharpBindGeneratePython</GlobalPropertiesToRemove>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target
+      Name="GeneratePythonBindings"
+      BeforeTargets="CoreCompile"
+      DependsOnTargets="ResolveProjectReferences"
+      Condition="'$(DesignTimeBuild)' != 'true'">
+
+    <ConvertToAbsolutePath Paths="$(SharpBindInputProject)">
+      <Output TaskParameter="AbsolutePaths" PropertyName="_SharpBindInputProjectFullPath" />
+    </ConvertToAbsolutePath>
+    <!-- Use the framework already selected and built by the SDK's ProjectReference
+         resolution. The input library may target net9.0 while the bridge targets net10.0. -->
+    <ItemGroup>
+      <_SharpBindInputPaths Remove="@(_SharpBindInputPaths)" />
+      <_SharpBindInputPaths Include="@(_ResolvedProjectReferencePaths)"
+          Condition="'%(_ResolvedProjectReferencePaths.MSBuildSourceProjectFile)' == '$(_SharpBindInputProjectFullPath)'" />
+    </ItemGroup>
+
+    <PropertyGroup>
+      <_SharpBindResolvedInputAssembly>@(_SharpBindInputPaths)</_SharpBindResolvedInputAssembly>
+
+      <_SharpBindArguments />
+
+      <_SharpBindArguments Condition="'$(SharpBindPythonModuleName)' != ''">--module &quot;$(SharpBindPythonModuleName)&quot; --python-package &quot;$(SharpBindPythonPackageOutput)&quot;</_SharpBindArguments>
+
+      <_SharpBindArguments Condition="'$(SharpBindStrictDocumentation)' == 'true'">$(_SharpBindArguments) --strict-docs true</_SharpBindArguments>
+    </PropertyGroup>
+
+    <Error
+        Condition="!Exists('$(_SharpBindResolvedInputAssembly)')"
+        Text="SharpBindInputProject must resolve to one compiled assembly. Ensure the binding project references and builds the input project." />
+
+    <Error
+        Condition="('$(SharpBindPythonModuleName)' == '') != ('$(SharpBindPythonPackageOutput)' == '')"
+        Text="Set both SharpBindPythonModuleName and SharpBindPythonPackageOutput." />
+
+    <Error
+        Condition="!$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net9.0'))"
+        Text="SharpBind binding projects require .NET 9.0 or higher." />
+
+    <Exec
+        Command="dotnet &quot;$(SharpBindGeneratorPath)&quot; --assembly &quot;$(_SharpBindResolvedInputAssembly)&quot; --native &quot;$(SharpBindNativeOutput)&quot; --library &quot;$(AssemblyName)&quot; $(_SharpBindArguments)" />
+
+    <Error
+        Condition="!Exists('$(SharpBindNativeOutput)/NativeExports.g.cs')"
+        Text="Generated bindings are missing. Reference SharpBind from the binding project and rebuild." />
+
+    <ItemGroup>
+      <Compile Remove="$(SharpBindNativeOutput)/**/*.cs" />
+      <Compile Include="$(SharpBindNativeOutput)/NativeExports.g.cs" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The helpers ship in NuGet and use the selected interpreter's installed tools.
+       They invoke Publish in a separate build with fresh output paths. -->
+  <Target Name="SharpBindPackage">
+    <ConvertToAbsolutePath Paths="$(SharpBindPythonProject)">
+      <Output TaskParameter="AbsolutePaths" PropertyName="_SharpBindPythonProjectFullPath" />
+    </ConvertToAbsolutePath>
+    <PropertyGroup>
+      <SharpBindWheelOutput Condition="'$(SharpBindWheelOutput)' == ''">$(_SharpBindPythonProjectFullPath)/dist</SharpBindWheelOutput>
+      <_SharpBindPackageArguments />
+      <_SharpBindPackageArguments Condition="'$(SharpBindLocalWheel)' == 'true'">--local</_SharpBindPackageArguments>
+      <_SharpBindPackageArguments Condition="'$(RuntimeIdentifier)' != ''">$(_SharpBindPackageArguments) --runtime-identifier &quot;$(RuntimeIdentifier)&quot;</_SharpBindPackageArguments>
+      <_SharpBindPackageArguments Condition="'$(SharpBindPythonModuleName)' != ''">$(_SharpBindPackageArguments) --module &quot;$(SharpBindPythonModuleName)&quot;</_SharpBindPackageArguments>
+    </PropertyGroup>
+    <ConvertToAbsolutePath Paths="$(SharpBindWheelOutput)">
+      <Output TaskParameter="AbsolutePaths" PropertyName="_SharpBindWheelOutputFullPath" />
+    </ConvertToAbsolutePath>
+    <Error Condition="!Exists('$(_SharpBindPythonProjectFullPath)/pyproject.toml')"
+           Text="SharpBindPythonProject must name the Python project directory containing pyproject.toml: $(_SharpBindPythonProjectFullPath)" />
+    <Error Condition="!Exists('$(SharpBindPythonToolsPath)/package.py')"
+           Text="SharpBind's bundled Python packaging tools are missing: $(SharpBindPythonToolsPath)" />
+    <Exec Command="&quot;$(SharpBindPythonExecutable)&quot; &quot;$(SharpBindPythonToolsPath)/package.py&quot; --project &quot;$(_SharpBindPythonProjectFullPath)&quot; --native-project &quot;$(MSBuildProjectFullPath)&quot; --configuration &quot;$(Configuration)&quot; --output &quot;$(_SharpBindWheelOutputFullPath)&quot; $(_SharpBindPackageArguments)" />
+  </Target>
+
+  <!-- Stage the bridge and explicitly declared dependencies only.
+       The packaging helper owns this fresh directory and validates each
+       library before packaging it. -->
+  <Target
+      Name="StageSharpBindNativeLibrary"
+      AfterTargets="Publish"
+      Condition="'$(SharpBindPythonPackageOutput)' != ''">
+
+    <Error
+        Condition="'$(RuntimeIdentifier)' != 'win-x64'
+               and '$(RuntimeIdentifier)' != 'linux-x64'
+               and '$(RuntimeIdentifier)' != 'osx-arm64'"
+        Text="Python wheels support win-x64, linux-x64 and osx-arm64." />
+
+    <Error
+        Condition="'$(NativeBinaryExt)' == ''"
+        Text="The Native AOT SDK must resolve the shared-library extension before staging." />
+
+    <PropertyGroup>
+      <_SharpBindPackageNative>$(SharpBindPythonPackageOutput)/_native/$(RuntimeIdentifier)</_SharpBindPackageNative>
+      <_SharpBindPublishedLibrary>$(PublishDir)$(AssemblyName)$(NativeBinaryExt)</_SharpBindPublishedLibrary>
+    </PropertyGroup>
+
+    <Error
+        Condition="!Exists('$(_SharpBindPublishedLibrary)')"
+        Text="Native AOT library is missing: $(_SharpBindPublishedLibrary)" />
+
+    <ItemGroup>
+      <_SharpBindPackageLibrary Remove="@(_SharpBindPackageLibrary)" />
+      <_SharpBindUniqueLibraryNames Remove="@(_SharpBindUniqueLibraryNames)" />
+
+      <_SharpBindPackageLibrary Include="$(_SharpBindPublishedLibrary)" />
+      <_SharpBindPackageLibrary Include="@(SharpBindNativeDependency)" />
+    </ItemGroup>
+
+    <Error
+        Condition="!Exists('%(_SharpBindPackageLibrary.Identity)')"
+        Text="Native dependency is missing: %(_SharpBindPackageLibrary.Identity)" />
+
+    <RemoveDuplicates Inputs="@(_SharpBindPackageLibrary->'%(Filename)%(Extension)')">
+      <Output
+          TaskParameter="Filtered"
+          ItemName="_SharpBindUniqueLibraryNames" />
+    </RemoveDuplicates>
+
+    <Error
+        Condition="'@(_SharpBindPackageLibrary->Count())' != '@(_SharpBindUniqueLibraryNames->Count())'"
+        Text="SharpBind native dependencies must have distinct filenames, including the bridge DLL. Got @(_SharpBindPackageLibrary->Count()) files and @(_SharpBindUniqueLibraryNames->Count()) unique names." />
+
+    <MakeDir Directories="$(_SharpBindPackageNative)" />
+
+    <Copy
+        SourceFiles="@(_SharpBindPackageLibrary)"
+        DestinationFolder="$(_SharpBindPackageNative)" />
+  </Target>
+</Project>

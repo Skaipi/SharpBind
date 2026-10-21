@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <PackageId>SharpBind</PackageId>
+    <Authors>Mateusz Skarupski</Authors>
+    <PackageTags>python;bindings;interop;nativeaot</PackageTags>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Version>0.1.0</Version>
+    <Description>Generate Python and C ABI bindings for annotated .NET libraries.</Description>
+    <PackageType>Dependency;Template</PackageType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://skaipi.github.io/SharpBind/</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Skaipi/SharpBind</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackGenerator</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../docs/images/SharpBind_small_logo.png" Pack="true" PackagePath="/icon.png" />
+    <None Include="../../build/SharpBind.targets" Pack="true" PackagePath="build/SharpBind.targets" />
+    <None Include="../../build/SharpBind.Native.targets" Pack="true" PackagePath="build/SharpBind.Native.targets" />
+    <None Include="../../build/python/**/*.py" Pack="true" PackagePath="build/python/" />
+    <None Include="../../python/common-runtime/src/sharpbind_runtime/*.py" Pack="true" PackagePath="python/common-runtime/src/sharpbind_runtime/" />
+    <None Include="../../python/common-runtime/native/*" Pack="true" PackagePath="python/common-runtime/native/" />
+    <None Include="../../python/common-runtime/LICENSE;../../python/common-runtime/README.md" Pack="true" PackagePath="python/common-runtime/" />
+    <Content Include="../../templates/python/**/*" Exclude="../../templates/python/**/__pycache__/**" Pack="true" PackagePath="content/python" />
+    <ProjectReference Include="../SharpBind.Generator/SharpBind.Generator.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained;PublishAot" />
+  </ItemGroup>
+  <Target Name="PackGenerator" DependsOnTargets="Build">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+      <TfmSpecificPackageFile Include="$(MSBuildProjectDirectory)/../SharpBind.Generator/bin/$(Configuration)/net9.0/SharpBind.Generator.dll;$(MSBuildProjectDirectory)/../SharpBind.Generator/bin/$(Configuration)/net9.0/SharpBind.Generator.deps.json;$(MSBuildProjectDirectory)/../SharpBind.Generator/bin/$(Configuration)/net9.0/SharpBind.Generator.runtimeconfig.json">
+        <PackagePath>tools/net9.0/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>

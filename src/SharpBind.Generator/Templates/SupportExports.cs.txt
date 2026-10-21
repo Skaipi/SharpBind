@@ -1,0 +1,17 @@
+    [UnmanagedCallersOnly(EntryPoint = "sharpbind_error_release", CallConvs = [typeof(CallConvCdecl)])]
+    public static void ErrorRelease(SbError* error) => NativeErrors.ErrorRelease(error);
+
+    [UnmanagedCallersOnly(EntryPoint = "sharpbind_free", CallConvs = [typeof(CallConvCdecl)])]
+    public static int Free(void* buffer, SbError* error)
+    {
+        try
+        {
+            NativeErrors.Begin(error);
+            CopiedValues.Free(buffer);
+            return 0;
+        }
+        catch (Exception errorValue)
+        {
+            return NativeErrors.Fail(errorValue, error);
+        }
+    }

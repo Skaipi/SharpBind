@@ -1,0 +1,24 @@
+﻿<Project>
+  <PropertyGroup>
+    <SharpBindGeneratorPath Condition="'$(SharpBindGeneratorPath)' == ''">$(MSBuildThisFileDirectory)../tools/net9.0/SharpBind.Generator.dll</SharpBindGeneratorPath>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <SharpBindPythonOutput Condition="'$(SharpBindPythonOutput)' == ''">$(MSBuildProjectDirectory)/artifacts/sharpbind/$(Configuration)/$(TargetFramework)</SharpBindPythonOutput>
+    <SharpBindPythonPackageOutput Condition="'$(SharpBindPythonPackageOutput)' == '' and '$(SharpBindPythonModuleName)' != ''">$(SharpBindPythonOutput)/python/$(SharpBindPythonModuleName)</SharpBindPythonPackageOutput>
+    <SharpBindGeneratePython Condition="'$(SharpBindGeneratePython)' == '' and '$(SharpBindPythonModuleName)' != ''">true</SharpBindGeneratePython>
+    <SharpBindNativeLibraryName Condition="'$(SharpBindNativeLibraryName)' == ''">$(AssemblyName)Native</SharpBindNativeLibraryName>
+  </PropertyGroup>
+  <Import Project="SharpBind.Native.targets" Condition="'$(SharpBindInputProject)' != ''" />
+
+  <!-- Managed builds emit an importable Python package without compiling native exports
+       into the application assembly. Native publishing remains a separate bridge build. -->
+  <Target Name="GenerateSharpBindPythonPackage" AfterTargets="Build"
+          Condition="'$(SharpBindGeneratePython)' == 'true' and '$(SharpBindInputProject)' == '' and '$(TargetFramework)' != '' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_SharpBindManagedNativeOutput>$(IntermediateOutputPath)SharpBind/Generated</_SharpBindManagedNativeOutput>
+      <_SharpBindManagedArguments />
+      <_SharpBindManagedArguments Condition="'$(SharpBindStrictDocumentation)' == 'true'">--strict-docs true</_SharpBindManagedArguments>
+    </PropertyGroup>
+    <Error Condition="'$(SharpBindPythonModuleName)' == ''" Text="Set SharpBindPythonModuleName to generate a Python package." />
+    <Exec Command="dotnet &quot;$(SharpBindGeneratorPath)&quot; --assembly &quot;$(TargetPath)&quot; --native &quot;$(_SharpBindManagedNativeOutput)&quot; --library &quot;$(SharpBindNativeLibraryName)&quot; --module &quot;$(SharpBindPythonModuleName)&quot; --python-package &quot;$(SharpBindPythonPackageOutput)&quot; $(_SharpBindManagedArguments)" />
+  </Target>
+</Project>

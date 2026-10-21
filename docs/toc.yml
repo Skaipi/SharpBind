@@ -1,0 +1,24 @@
+- name: Overview
+  href: index.md
+- name: Getting started
+  href: getting-started.md
+- name: Guides
+  items:
+    - name: Exporting APIs
+      href: exporting-apis.md
+    - name: Using generated Python APIs
+      href: python-runtime.md
+- name: Reference
+  items:
+    - name: PythonExportAttribute
+      href: reference/python-export-attribute.md
+    - name: Supported types and limitations
+      href: supported-types.md
+    - name: Configuration and build integration
+      href: configuration.md
+- name: Contributing
+  items:
+    - name: Code organization and checks
+      href: contributing.md
+    - name: ABI maintenance
+      href: abi-maintenance.md
