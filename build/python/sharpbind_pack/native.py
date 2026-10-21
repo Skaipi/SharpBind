@@ -3,7 +3,7 @@
 import struct
 
 
-def validate_native_library(path, target):
+def validate_native_library(path, target, *, allow_bundle=False):
     try:
         data = path.read_bytes()
         if target.rid == "win-x64":
@@ -11,11 +11,13 @@ def validate_native_library(path, target):
         elif target.rid == "linux-x64":
             _elf(data)
         elif target.rid == "osx-arm64":
-            _macho(data)
+            _macho(data, allow_bundle=allow_bundle)
         else:
             raise ValueError(f"Unsupported native target: {target.rid}")
     except (struct.error, IndexError) as error:
         raise ValueError(f"Truncated native library: {path}") from error
+    except ValueError as error:
+        raise ValueError(f"{path}: {error}") from error
 
 
 def _pe(data):
@@ -40,7 +42,10 @@ def _elf(data):
         raise ValueError("Expected a Linux x64 shared library")
 
 
-def _macho(data):
+def _macho(data, *, allow_bundle=False):
     magic, cpu, subtype, kind = struct.unpack_from("<IIII", data)
-    if magic != 0xFEEDFACF or cpu != 0x0100000C or kind != 6:
-        raise ValueError("Expected an ARM64 Mach-O dynamic library")
+    # CPython extensions use MH_BUNDLE (8); Native AOT bridges use MH_DYLIB (6).
+    kinds = (6, 8) if allow_bundle else (6,)
+    if magic != 0xFEEDFACF or cpu != 0x0100000C or kind not in kinds:
+        expected = "dynamic library or bundle" if allow_bundle else "dynamic library"
+        raise ValueError(f"Expected an ARM64 Mach-O {expected}")

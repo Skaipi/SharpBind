@@ -36,7 +36,7 @@ def build_support(staging, module, target):
     (binary,) = [
         path for path in package.glob("_buffer*") if path.suffix in (".pyd", ".so")
     ]
-    validate_native_library(binary, target)
+    validate_native_library(binary, target, allow_bundle=True)
     return {
         str(source): f"{module}/_sharpbind/{source.name}"
         for source in package.iterdir()
@@ -48,14 +48,17 @@ def compile_adapter(module, staging, rid):
     from setuptools import Distribution, Extension
 
     arguments = [] if os.name == "nt" else ["-fvisibility=hidden"]
-    deployment = ["-mmacosx-version-min=14.0"] if rid == "osx-arm64" else []
+    # Override universal Python's default architectures to match the wheel tag.
+    target_arguments = (
+        ["-arch", "arm64", "-mmacosx-version-min=14.0"] if rid == "osx-arm64" else []
+    )
     extension = Extension(
         f"{module}._sharpbind._buffer",
         [source.name for source in sorted(Path.cwd().glob("*.c"))],
         define_macros=[("SHARPBIND_MODULE", f'"{module}._sharpbind._buffer"')],
         py_limited_api=True,
-        extra_compile_args=arguments + deployment,
-        extra_link_args=deployment,
+        extra_compile_args=arguments + target_arguments,
+        extra_link_args=target_arguments,
     )
     distribution = Distribution({"name": module, "ext_modules": [extension]})
     command = distribution.get_command_obj("build_ext")

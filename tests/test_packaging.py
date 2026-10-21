@@ -11,10 +11,11 @@ from unittest.mock import patch
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "build/python"))
-from sharpbind_pack import release, wheel
+from sharpbind_pack import adapter, release, wheel
 from sharpbind_pack._platform import PlatformTarget
 
 WINDOWS = PlatformTarget("win-x64", ".dll", "win_amd64")
+MACOS = PlatformTarget("osx-arm64", ".dylib", "macosx_14_0_arm64")
 
 
 def native_dll(machine=0x8664, managed=False):
@@ -26,6 +27,10 @@ def native_dll(machine=0x8664, managed=False):
     if managed:
         struct.pack_into("<I", data, 64 + 24 + 112 + 14 * 8, 1234)
     return bytes(data)
+
+
+def native_macho(cpu=0x0100000C, kind=6, magic=0xFEEDFACF):
+    return struct.pack("<8I", magic, cpu, 0, kind, 0, 0, 0, 0)
 
 
 class PackagingTests(unittest.TestCase):
@@ -248,12 +253,10 @@ class NativeLibraryValidationTests(unittest.TestCase):
 
     def test_elf_and_macho_architecture_validation(self):
         linux = PlatformTarget("linux-x64", ".so", "linux_x86_64")
-        mac = PlatformTarget("osx-arm64", ".dylib", "macosx_14_0_arm64")
         elf = bytearray(64)
         elf[:6] = b"\x7fELF\x02\x01"
         struct.pack_into("<HH", elf, 16, 3, 62)
-        macho = struct.pack("<IIII", 0xFEEDFACF, 0x0100000C, 0, 6)
-        for target, content in ((linux, elf), (mac, macho)):
+        for target, content in ((linux, elf), (MACOS, native_macho())):
             path = self.root / ("Bridge" + target.suffix)
             path.write_bytes(content)
             wheel.validate_native_library(path, target)
@@ -264,6 +267,56 @@ class NativeLibraryValidationTests(unittest.TestCase):
         path.write_bytes(elf)
         with self.assertRaises(ValueError):
             wheel.validate_native_library(path, linux)
+
+    def test_macho_bundles_are_allowed_only_for_python_extensions(self):
+        path = self.root / "_buffer.abi3.so"
+        path.write_bytes(native_macho(kind=8))
+        wheel.validate_native_library(path, MACOS, allow_bundle=True)
+        with self.assertRaisesRegex(ValueError, "dynamic library") as error:
+            wheel.validate_native_library(path, MACOS)
+        self.assertIn(str(path), str(error.exception))
+
+    def test_macho_extensions_still_reject_wrong_architecture_and_file_types(self):
+        path = self.root / "_buffer.abi3.so"
+        for description, content in (
+            ("Intel bundle", native_macho(cpu=0x01000007, kind=8)),
+            ("32-bit header", native_macho(magic=0xFEEDFACE, kind=8)),
+            ("executable", native_macho(kind=2)),
+            ("object file", native_macho(kind=1)),
+            ("truncated header", native_macho(kind=8)[:8]),
+        ):
+            with self.subTest(case=description):
+                path.write_bytes(content)
+                with self.assertRaises(ValueError) as error:
+                    wheel.validate_native_library(path, MACOS, allow_bundle=True)
+                self.assertIn(str(path), str(error.exception))
+
+
+class AdapterTests(unittest.TestCase):
+    def test_macos_support_packages_a_python_bundle(self):
+        with tempfile.TemporaryDirectory(prefix="SharpBind adapter spaces ") as directory:
+            staging = Path(directory)
+            (staging / "example_api").mkdir()
+            binary = staging / "example_api/_sharpbind/_buffer.abi3.so"
+
+            def compile_extension(*args, **kwargs):
+                binary.write_bytes(native_macho(kind=8))
+
+            with patch.object(adapter.subprocess, "run", side_effect=compile_extension):
+                files = adapter.build_support(staging, "example_api", MACOS)
+            self.assertEqual(
+                files[str(binary)], "example_api/_sharpbind/_buffer.abi3.so"
+            )
+            self.assertIn(str(binary.parent / "_platform.py"), files)
+
+    def test_macos_adapter_explicitly_targets_arm64_for_compiling_and_linking(self):
+        with patch("setuptools.Distribution") as distribution:
+            adapter.compile_adapter("example_api", Path("staging"), "osx-arm64")
+        (extension,) = distribution.call_args.args[0]["ext_modules"]
+        for arguments in (extension.extra_compile_args, extension.extra_link_args):
+            self.assertEqual(arguments.count("-arch"), 1)
+            self.assertEqual(arguments[arguments.index("-arch") + 1], "arm64")
+            self.assertIn("-mmacosx-version-min=14.0", arguments)
 
 
 if __name__ == "__main__":
