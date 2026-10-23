@@ -10,7 +10,7 @@ internal enum TensorLifetime { Borrowed, Retainable }
 
 // BindingJson writes these as snake_case strings. Explicit names preserve the
 // existing wire spelling where it differs from the naming policy.
-internal enum LogicalTypeKind { Scalar, String, Array, Tensor, Handle }
+internal enum LogicalTypeKind { Void, Scalar, String, Array, Tensor, Handle }
 
 internal enum LogicalElement
 {

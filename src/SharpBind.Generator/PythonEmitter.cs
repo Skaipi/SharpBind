@@ -145,9 +145,7 @@ internal static class PythonEmitter
         return arguments;
     }
 
-    private static void AppendMethodBody(
-        StringBuilder code,
-        ExportMethod method)
+    private static void AppendMethodBody(StringBuilder code, ExportMethod method)
     {
         var values = BuildArgumentTuple(method);
         var entryPoint = Literal(method.EntryPoint);
@@ -167,7 +165,7 @@ internal static class PythonEmitter
 
     private static string TypeAnnotation(LogicalType? type, bool isResult, HashSet<string> shadowedNames)
     {
-        var annotation = PythonTypes.Annotation(type, isResult);
+        var annotation = PythonTypes.TypeSignatures(type, isResult);
         MatchEvaluator evaluator = match => shadowedNames.Contains(match.Value) ? "_builtins." + match.Value : match.Value;
 
         return BuiltinTypeRegex.Replace(annotation, evaluator);

@@ -2,6 +2,11 @@ using System.Text;
 
 namespace SharpBind.Generator;
 
+internal class HeaderEmitter
+{
+    // $"{arutent.type} {argument.name}"
+}
+
 internal static class NativeEmitter
 {
     /// <summary>

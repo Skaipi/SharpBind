@@ -78,8 +78,8 @@ internal static class ContractReader
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var member in type.GetMethods(Members).Cast<MethodBase>().Concat(type.GetConstructors(Members)))
         {
-            if (AnnotationReader.Read(member) is not { } annotation)
-                continue;
+            if (AnnotationReader.Read(member) is not { } annotation) continue;
+
             var method = ReadMethod(member, annotation, prefix, docs);
             if (!names.Add(method.Name))
                 throw new BindingValidationException($"{type}: duplicate exported member '{method.Name}'; export one constructor and give overloaded methods distinct names.");
@@ -91,9 +91,8 @@ internal static class ContractReader
     private static ExportMethod ReadMethod(MethodBase member, ExportAnnotation annotation, string prefix, DocumentationReader docs)
     {
         ContractValidator.Method(member, annotation);
-        bool constructor = member is ConstructorInfo;
-        string name = constructor ? "__init__" :
-            PythonNames.Identifier(annotation.Name ?? PythonNames.SnakeCase(member.Name));
+        var constructor = member is ConstructorInfo;
+        var name = constructor ? "__init__" : PythonNames.Identifier(annotation.Name ?? PythonNames.SnakeCase(member.Name));
         var arguments = ReadArguments(member);
         return new(name, prefix + "_" + BindingJson.Hash(name)[..24], member.Name,
             constructor, member.IsStatic, ReadResult(member), arguments, docs.Read(Declaration(member), arguments));
