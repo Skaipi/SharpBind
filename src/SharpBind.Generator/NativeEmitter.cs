@@ -4,73 +4,6 @@ namespace SharpBind.Generator;
 
 internal static class NativeEmitter
 {
-    /// <summary>
-    /// Maps each argument/result slot to matching C# and C ABI declarations.
-    /// Export functions return a status code, so managed return values use output pointers.
-    /// </summary>
-    private static IEnumerable<(string Cs, string C)> Parameters(ExportMethod method)
-    {
-        // Instance calls receive the opaque object token created by an exported constructor.
-        if (!method.IsStatic && !method.IsConstructor) yield return ("SbHandle handle", "sb_handle handle");
-
-        // Handle arguments
-        // global:: starts C# name lookup at the root namespace, avoiding collisions
-        foreach (var a in method.Arguments)
-        {
-            var t = a.Type;
-            string n = a.NativeName;
-
-            switch (t.Kind)
-            {
-                case LogicalTypeKind.Scalar:
-                    yield return ($"{t.NativeTypeName} {n}", $"{t.CTypeName} {n}");
-                    break;
-                case LogicalTypeKind.Tensor when t.IsTensorOwner:
-                    yield return ($"global::SharpBind.Interop.TensorDescriptor* {n}", $"sb_tensor* {n}");
-                    break;
-                case LogicalTypeKind.Tensor:
-                    yield return ($"global::SharpBind.Interop.TensorDescriptor* {n}", $"const sb_tensor* {n}");
-                    break;
-                case LogicalTypeKind.String:
-                case LogicalTypeKind.Array:
-                    // Array to be copied + element count.
-                    yield return ($"{t.NativeTypeName}* {n}", $"const {t.CTypeName}* {n}");
-                    yield return ($"long {n}Length", $"int64_t {n}_length");
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unsupported native argument kind '{t.Kind}' for '{method.EntryPoint}' parameter '{a.Name}'.");
-            }
-        }
-
-        // Handle reult type
-        // The caller supplies a slot for the new object's opaque token.
-        if (method.IsConstructor) yield return ("SbHandle* result", "sb_handle* result");
-        else if (method.Result is { } result)
-        {
-            switch (result.Kind)
-            {
-                case LogicalTypeKind.Scalar:
-                    yield return ($"{result.NativeTypeName}* result", $"{result.CTypeName}* result");
-                    break;
-                case LogicalTypeKind.Tensor:
-                    // Write the descriptor into caller-provided storage and transfer its lease.
-                    yield return ("global::SharpBind.Interop.TensorDescriptor* result", "sb_tensor* result");
-                    break;
-                case LogicalTypeKind.String:
-                case LogicalTypeKind.Array:
-                    // Write an allocated buffer's address and count into the caller's slots.
-                    yield return ($"{result.NativeTypeName}** result", $"{result.CTypeName}** result");
-                    yield return ("long* resultLength", "int64_t* result_length");
-                    break;
-                default:
-                    throw new InvalidOperationException($"Unsupported native result kind '{result.Kind}' for '{method.EntryPoint}'.");
-            }
-        }
-
-        // The caller supplies error storage; the function's status reports success or failure.
-        yield return ("SbError* error", "sb_error* error");
-    }
-
     private static string ReadArgument(ExportArgument a)
     {
         string nullable = a.Type.Logical.Nullable ? "true" : "false";
@@ -117,8 +50,16 @@ internal static class NativeEmitter
 
     private static void AppendMethod(StringBuilder code, ExportMethod method, string type, int index, bool concurrentCalls)
     {
+        var parameters = new List<string>();
+        if (!method.IsStatic && !method.IsConstructor) parameters.Add(CsharpTypes.ThisSignature);
+        foreach (var arg in method.Arguments)
+            parameters.AddRange(CsharpTypes.TypeSignature(arg.Type, arg.NativeName));
+        if (method.IsConstructor) parameters.Add(CsharpTypes.ConstructorResultSignature);
+        parameters.AddRange(CsharpTypes.ResultSignature(method.Result));
+        parameters.Add(CsharpTypes.ErrorSignature);
+
         code.AppendLine(Attribute(method.EntryPoint));
-        code.AppendLine($"    public static int Export{index}({string.Join(", ", Parameters(method).Select(p => p.Cs))})");
+        code.AppendLine($"    public static int Export{index}({string.Join(", ", parameters)})");
         code.AppendLine("    {\n        try\n        {\n            NativeErrors.Begin(error);");
 
         AppendResultInitialization(code, method);
@@ -148,7 +89,7 @@ internal static class NativeEmitter
     {
         if (method.IsConstructor)
             code.AppendLine($"            *result = ObjectHandles.Add({call}, {(concurrentCalls ? "true" : "false")});");
-        else if (method.Result is { } result)
+        else if (method.Result is { Kind: not LogicalTypeKind.Void } result)
         {
             if (result.Kind == LogicalTypeKind.Tensor)
             {
@@ -169,7 +110,7 @@ internal static class NativeEmitter
 
     private static void AppendResultInitialization(StringBuilder code, ExportMethod method)
     {
-        if (method.IsConstructor || method.Result is not null)
+        if (method.IsConstructor || method.Result.Kind != LogicalTypeKind.Void)
         {
             // Failed conversion or invocation must leave no stale ownership token in
             // the caller's result slot; cleanup may inspect it after an error status.
@@ -224,8 +165,19 @@ internal static class NativeEmitter
         {
             if (cls.HasInstances)
                 code.AppendLine($"int32_t {cls.Prefix}_release(sb_handle handle, sb_error* error);");
+
             foreach (var method in cls.Methods)
-                code.AppendLine($"int32_t {method.EntryPoint}({string.Join(", ", Parameters(method).Select(p => p.C))});");
+            {
+                var parameters = new List<string>();
+                if (!method.IsStatic && !method.IsConstructor) parameters.Add(CTypes.ThisSignature);
+                foreach (var arg in method.Arguments)
+                    parameters.AddRange(CTypes.TypeSignature(arg.Type, arg.NativeName));
+                if (method.IsConstructor) parameters.Add(CTypes.ConstructorResultSignature);
+                parameters.AddRange(CTypes.ResultSignature(method.Result));
+                parameters.Add(CTypes.ErrorSignature);
+
+                code.AppendLine($"int32_t {method.EntryPoint}({string.Join(", ", parameters)});");
+            }
         }
         return code.AppendLine("#ifdef __cplusplus\n}\n#endif").ToString();
     }

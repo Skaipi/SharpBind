@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using SharpBind.Generator;
 
 namespace SharpBind.Tests;
@@ -50,6 +51,63 @@ public class ContractTests
         Assert.AreEqual(library, schema.RootElement.GetProperty("library").GetString());
         Assert.AreEqual(module, schema.RootElement.GetProperty("python_module").GetString());
         Assert.AreEqual(source, Read("NativeExports.g.cs"));
+    }
+
+    [DataTestMethod]
+    [DataRow("Functions", "fail",
+        "SbError* error",
+        "sb_error* error")]
+    [DataRow("RetainedDataset", "increment",
+        "SbHandle handle, SbError* error",
+        "sb_handle handle, sb_error* error")]
+    [DataRow("NamedApi", "__init__",
+        "int a0, SbHandle* result, SbError* error",
+        "int32_t a0, sb_handle* result, sb_error* error")]
+    [DataRow("Functions", "negate",
+        "byte a0, byte* result, SbError* error",
+        "uint8_t a0, uint8_t* result, sb_error* error")]
+    [DataRow("Functions", "echo_text",
+        "byte* a0, long a0Length, byte** result, long* resultLength, SbError* error",
+        "const uint8_t* a0, int64_t a0_length, uint8_t** result, int64_t* result_length, sb_error* error")]
+    [DataRow("AccumulatorInt32", "echo",
+        "int* a0, long a0Length, int** result, long* resultLength, SbError* error",
+        "const int32_t* a0, int64_t a0_length, int32_t** result, int64_t* result_length, sb_error* error")]
+    [DataRow("Tensors", "sum_view",
+        "global::SharpBind.Interop.TensorDescriptor* a0, double* result, SbError* error",
+        "const sb_tensor* a0, double* result, sb_error* error")]
+    [DataRow("Tensors", "increment",
+        "global::SharpBind.Interop.TensorDescriptor* a0, SbError* error",
+        "const sb_tensor* a0, sb_error* error")]
+    [DataRow("LeaseTests", "echo",
+        "global::SharpBind.Interop.TensorDescriptor* a0, global::SharpBind.Interop.TensorDescriptor* result, SbError* error",
+        "sb_tensor* a0, sb_tensor* result, sb_error* error")]
+    public void NativeDeclarationsFollowTheSameCallContract(
+        string className, string methodName, string csharpParameters, string cParameters)
+    {
+        Generate();
+        using var schema = JsonDocument.Parse(Read("bindings.json"));
+        var cls = schema.RootElement.GetProperty("classes").EnumerateArray()
+            .Single(c => c.GetProperty("name").GetString() == className);
+        string entry = cls.GetProperty("methods").EnumerateArray()
+            .Single(m => m.GetProperty("name").GetString() == methodName)
+            .GetProperty("entry").GetString()!;
+
+        StringAssert.Contains(Read("bindings.h"), $"int32_t {entry}({cParameters});");
+
+        string[] source = Read("NativeExports.g.cs").Split('\n', StringSplitOptions.TrimEntries);
+        int attribute = Array.FindIndex(source,
+            line => line.StartsWith($"[UnmanagedCallersOnly(EntryPoint = \"{entry}\",", StringComparison.Ordinal));
+        Assert.IsTrue(attribute >= 0, $"Missing export for {className}.{methodName}.");
+        StringAssert.Matches(source[attribute + 1],
+            new Regex($"^public static int Export[0-9]+\\({Regex.Escape(csharpParameters)}\\)$"));
+    }
+
+    [TestMethod]
+    public void NativeDeclarationsRejectVoidArguments()
+    {
+        var type = TypeMapping.Map(typeof(void), isResult: false);
+        Assert.ThrowsException<ArgumentException>(() => CsharpTypes.TypeSignature(type, "a0"));
+        Assert.ThrowsException<ArgumentException>(() => CTypes.TypeSignature(type, "a0"));
     }
 
     [TestMethod]

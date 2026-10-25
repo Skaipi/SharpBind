@@ -94,6 +94,12 @@ internal static class TypeMapping
                 return MapTensor(type, definition, isResult);
         }
 
+        if (type == typeof(void))
+            return new(
+                new(LogicalTypeKind.Void, LogicalElement.Void, false),
+                new("void", "void", "void", "void", "void")
+            );
+
         if (type == typeof(string))
             return new(
                 new(LogicalTypeKind.String, LogicalElement.Utf8, false),

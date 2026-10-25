@@ -33,7 +33,7 @@ internal static class PythonDocumentation
         var parameters = arguments.Select(argument =>
         {
             var documentation = xml?.Elements("param").FirstOrDefault(e => (string?)e.Attribute("name") == argument.SourceName);
-            var type = PythonTypes.Annotation(argument.Type.Logical)
+            var type = PythonTypes.TypeSignatures(argument.Type.Logical)
                 .Replace("_npt.", "numpy.typing.").Replace("_np.", "numpy.");
 
             return $"{argument.Name} : {type}\n    {GetText(documentation, substitutions)}";

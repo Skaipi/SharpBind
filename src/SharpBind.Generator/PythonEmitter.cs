@@ -115,7 +115,7 @@ internal static class PythonEmitter
         var arguments = BuildArguments(method, shadowedNames);
         var returnType = method.IsConstructor
             ? "None"
-            : TypeAnnotation(method.Result?.Logical, isResult: true, shadowedNames);
+            : TypeAnnotation(method.Result.Logical, isResult: true, shadowedNames);
 
         code.AppendLine($"    def {method.Name}({string.Join(", ", arguments)}) -> {returnType}:");
         code.AppendLine($"        {Literal(method.Documentation)}");
@@ -145,9 +145,7 @@ internal static class PythonEmitter
         return arguments;
     }
 
-    private static void AppendMethodBody(
-        StringBuilder code,
-        ExportMethod method)
+    private static void AppendMethodBody(StringBuilder code, ExportMethod method)
     {
         var values = BuildArgumentTuple(method);
         var entryPoint = Literal(method.EntryPoint);
@@ -165,12 +163,12 @@ internal static class PythonEmitter
         return $"({values}{trailingComma})";
     }
 
-    private static string TypeAnnotation(LogicalType? type, bool isResult, HashSet<string> shadowedNames)
+    private static string TypeAnnotation(LogicalType type, bool isResult, HashSet<string> shadowedNames)
     {
-        var annotation = PythonTypes.Annotation(type, isResult);
+        var annotations = PythonTypes.TypeSignatures(type, isResult);
         MatchEvaluator evaluator = match => shadowedNames.Contains(match.Value) ? "_builtins." + match.Value : match.Value;
 
-        return BuiltinTypeRegex.Replace(annotation, evaluator);
+        return BuiltinTypeRegex.Replace(annotations, evaluator);
     }
 
     /// <summary>Encode C# UTF-16 string. Combines multi unit characters into one Unicode character. For example: \uD83D\uDE00 -> \U0001f60 (😀-emoji)</summary>

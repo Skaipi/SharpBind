@@ -89,7 +89,7 @@ def _argument_types(method):
 
     # Results point to caller-provided storage that the native function fills.
     result = method["result"]
-    if result:
+    if result["kind"] != "void":
         if result["kind"] == "tensor":
             types.append(ct.c_void_p)
         elif result["kind"] in ("scalar", "handle"):
