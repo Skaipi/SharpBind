@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using SharpBind.Generator;
 
 namespace SharpBind.Tests;
@@ -92,14 +91,35 @@ public class ContractTests
             .Single(m => m.GetProperty("name").GetString() == methodName)
             .GetProperty("entry").GetString()!;
 
-        StringAssert.Contains(Read("bindings.h"), $"int32_t {entry}({cParameters});");
+        string expectedCDeclaration = $"int32_t {entry}({cParameters});";
+        string[] header = Read("bindings.h").Split('\n', StringSplitOptions.TrimEntries);
+        string[] declarations = header
+            .Where(line => line.StartsWith($"int32_t {entry}(", StringComparison.Ordinal))
+            .ToArray();
+        Assert.AreEqual(1, declarations.Length, $"Expected one C declaration for {className}.{methodName}.");
+        Assert.AreEqual(expectedCDeclaration, declarations[0]);
 
         string[] source = Read("NativeExports.g.cs").Split('\n', StringSplitOptions.TrimEntries);
-        int attribute = Array.FindIndex(source,
-            line => line.StartsWith($"[UnmanagedCallersOnly(EntryPoint = \"{entry}\",", StringComparison.Ordinal));
-        Assert.IsTrue(attribute >= 0, $"Missing export for {className}.{methodName}.");
-        StringAssert.Matches(source[attribute + 1],
-            new Regex($"^public static int Export[0-9]+\\({Regex.Escape(csharpParameters)}\\)$"));
+        string expectedAttribute =
+            $"""[UnmanagedCallersOnly(EntryPoint = "{entry}", CallConvs = [typeof(CallConvCdecl)])]""";
+        int attributeCount = source.Count(line => line == expectedAttribute);
+        Assert.AreEqual(1, attributeCount, $"Expected one C# export for {className}.{methodName}.");
+
+        int attributeIndex = Array.IndexOf(source, expectedAttribute);
+        Assert.IsTrue(attributeIndex + 1 < source.Length, "The export attribute must be followed by a declaration.");
+        string declaration = source[attributeIndex + 1];
+
+        const string declarationPrefix = "public static int Export";
+        StringAssert.StartsWith(declaration, declarationPrefix);
+        int parametersStart = declaration.IndexOf('(');
+        Assert.IsTrue(parametersStart > declarationPrefix.Length, $"Missing export index in: {declaration}");
+
+        string exportIndex = declaration[declarationPrefix.Length..parametersStart];
+        bool hasNumericExportIndex = exportIndex.All(char.IsAsciiDigit);
+        Assert.IsTrue(hasNumericExportIndex, $"Expected a numeric export index in: {declaration}");
+
+        string actualParameters = declaration[parametersStart..];
+        Assert.AreEqual($"({csharpParameters})", actualParameters, $"C# parameters for {className}.{methodName}.");
     }
 
     [TestMethod]

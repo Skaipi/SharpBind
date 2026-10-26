@@ -139,8 +139,10 @@ public class BindingGeneratorTests
                 [typeof(PythonExportAttribute).GetProperty(nameof(PythonExportAttribute.ConcurrentCalls))!], [true]));
             method.GetILGenerator().Emit(OpCodes.Ret);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(assembly)).Message,
-            "ConcurrentCalls can only be specified on a class");
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "ConcurrentCalls can only be specified on a class");
+        Assert.IsFalse(Directory.Exists(directory), "Invalid concurrency settings must fail before writing outputs.");
     }
 
     private static CustomAttributeBuilder Export(string? name = null, params Type[] typeArguments)
@@ -196,26 +198,70 @@ public class BindingGeneratorTests
             Method(type);
             Method(type, parameters: [typeof(int)]);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(assembly)).Message, "duplicate exported member");
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "duplicate exported member 'run'");
+        Assert.IsFalse(Directory.Exists(directory), "Ambiguous overloads must fail before writing outputs.");
+
         Generate(Define(type =>
         {
             Method(type);
             Method(type, exportName: "run_int", parameters: [typeof(int)]);
         }));
+
+        string python = File.ReadAllText(Path.Combine(PackageDirectory, "_bindings.py"));
+        StringAssert.Contains(python, "def run(");
+        StringAssert.Contains(python, "def run_int(");
     }
 
     [TestMethod]
-    public void NonpublicAndRefMembersAreRejected()
+    public void NonpublicMethodsAreRejected()
     {
-        Assert.ThrowsException<NotSupportedException>(() => Generate(Define(type => Method(type, attributes: MethodAttributes.Private | MethodAttributes.Static))));
-        Assert.ThrowsException<NotSupportedException>(() => Generate(Define(type => Method(type, parameters: [typeof(int).MakeByRefType()]))));
-        Assert.ThrowsException<NotSupportedException>(() => Generate(Define(type => Method(type, attributes: MethodAttributes.Public))));
-        Assert.ThrowsException<NotSupportedException>(() => Generate(Define(type =>
+        var assembly = Define(type =>
+            Method(type, attributes: MethodAttributes.Private | MethodAttributes.Static));
+
+        var error = Assert.ThrowsException<NotSupportedException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "only public synchronous ordinary methods");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void RefParametersAreRejected()
+    {
+        var assembly = Define(type => Method(type, parameters: [typeof(int).MakeByRefType()]));
+
+        var error = Assert.ThrowsException<NotSupportedException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "ref, out and params are unsupported");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void InstanceMethodsRequireAnExportedClass()
+    {
+        var assembly = Define(type => Method(type, attributes: MethodAttributes.Public));
+
+        var error = Assert.ThrowsException<NotSupportedException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "instance bindings require an exported class");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void AsyncMethodsAreRejected()
+    {
+        var assembly = Define(type =>
         {
             var method = Method(type);
             method.SetCustomAttribute(new CustomAttributeBuilder(
                 typeof(System.Runtime.CompilerServices.AsyncStateMachineAttribute).GetConstructor([typeof(Type)])!, [typeof(object)]));
-        })));
+        });
+
+        var error = Assert.ThrowsException<NotSupportedException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "only public synchronous ordinary methods");
+        Assert.IsFalse(Directory.Exists(directory));
     }
 
     [TestMethod]
@@ -235,9 +281,16 @@ public class BindingGeneratorTests
     [TestMethod]
     public void DynamicCodeRequirementsFailBeforeEmission()
     {
-        var assembly = Define(type => Method(type).SetCustomAttribute(new CustomAttributeBuilder(
-            typeof(System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute).GetConstructor([typeof(string)])!, ["Needs JIT"])));
-        StringAssert.Contains(Assert.ThrowsException<NotSupportedException>(() => Generate(assembly)).Message, "RequiresDynamicCode");
+        var assembly = Define(type =>
+        {
+            var method = Method(type);
+            method.SetCustomAttribute(new CustomAttributeBuilder(
+                typeof(System.Diagnostics.CodeAnalysis.RequiresDynamicCodeAttribute).GetConstructor([typeof(string)])!, ["Needs JIT"]));
+        });
+
+        var error = Assert.ThrowsException<NotSupportedException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "RequiresDynamicCode");
         Assert.IsFalse(Directory.Exists(directory));
     }
 
@@ -350,76 +403,131 @@ public class BindingGeneratorTests
     }
 
     [TestMethod]
-    public void GenericClassesRequireCompleteClosedNamedSpecializations()
+    public void GenericClassesRequireSpecializationRegistrations()
     {
-        var missingRegistration = Define(type =>
+        var assembly = Define(type =>
         {
             type.DefineGenericParameters("T");
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(missingRegistration)).Message, "requires a PythonExport attribute");
 
-        var missingName = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "requires a PythonExport attribute");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void GenericSpecializationsRequireExplicitNames()
+    {
+        var assembly = Define(type =>
         {
             type.DefineGenericParameters("T");
             type.SetCustomAttribute(Export(null, typeof(int)));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(missingName)).Message, "requires a unique Python name");
 
-        var missingType = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "requires a unique Python name");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void GenericSpecializationsRequireAllTypeArguments()
+    {
+        var assembly = Define(type =>
         {
             type.DefineGenericParameters("T");
             type.SetCustomAttribute(Export("IntegerExample"));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(missingType)).Message, "supplies 0 type arguments");
 
-        var openType = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "specialization 'IntegerExample' supplies 0 type arguments for 1 generic parameters");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void GenericSpecializationsRequireClosedTypeArguments()
+    {
+        var assembly = Define(type =>
         {
             type.DefineGenericParameters("T");
             type.SetCustomAttribute(Export("OpenExample", typeof(List<>)));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(openType)).Message, "closed type arguments");
 
-        var invalidConstraint = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "specialization 'OpenExample' must use closed type arguments");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void GenericSpecializationsMustSatisfyTypeConstraints()
+    {
+        var assembly = Define(type =>
         {
             var parameter = type.DefineGenericParameters("T").Single();
             parameter.SetGenericParameterAttributes(GenericParameterAttributes.ReferenceTypeConstraint);
             type.SetCustomAttribute(Export("InvalidExample", typeof(int)));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(invalidConstraint)).Message, "invalid type arguments");
 
-        var duplicateName = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "specialization 'InvalidExample' has invalid type arguments");
+        Assert.IsInstanceOfType<ArgumentException>(error.InnerException);
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void GenericSpecializationsRequireUniquePythonNames()
+    {
+        var assembly = Define(type =>
         {
             type.DefineGenericParameters("T");
             type.SetCustomAttribute(Export("Example", typeof(int)));
             type.SetCustomAttribute(Export("Example", typeof(double)));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(duplicateName)).Message, "Duplicate Python class");
+
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        Assert.AreEqual("Duplicate Python class 'Example'.", error.Message);
         Assert.IsFalse(Directory.Exists(directory));
     }
 
     [TestMethod]
-    public void SpecializationArgumentsAreOnlyValidOnGenericClasses()
+    public void NonGenericClassesRejectSpecializationArguments()
     {
-        var classRegistration = Define(type =>
+        var assembly = Define(type =>
         {
             type.SetCustomAttribute(Export("Example", typeof(int)));
             Method(type);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(classRegistration)).Message, "specialize a generic class");
 
-        var methodRegistration = Define(type =>
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "type arguments can only specialize a generic class");
+        Assert.IsFalse(Directory.Exists(directory));
+    }
+
+    [TestMethod]
+    public void MethodsRejectSpecializationArguments()
+    {
+        var assembly = Define(type =>
         {
             var method = type.DefineMethod("Run", MethodAttributes.Public | MethodAttributes.Static, typeof(void), []);
             method.SetCustomAttribute(Export(null, typeof(int)));
             method.GetILGenerator().Emit(OpCodes.Ret);
         });
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(methodRegistration)).Message, "only be specified on a class");
+
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "generic type arguments can only be specified on a class");
         Assert.IsFalse(Directory.Exists(directory));
     }
 
@@ -441,7 +549,9 @@ public class BindingGeneratorTests
     public void InstanceMethodsRequireAnExportedConstructor()
     {
         var assembly = Define(type => Method(type, attributes: MethodAttributes.Public), annotateClass: true);
-        StringAssert.Contains(Assert.ThrowsException<BindingValidationException>(() => Generate(assembly)).Message, "exported constructor");
+        var error = Assert.ThrowsException<BindingValidationException>(() => Generate(assembly));
+
+        StringAssert.Contains(error.Message, "instance methods require an exported constructor");
         Assert.IsFalse(Directory.Exists(directory));
     }
 
