@@ -5,8 +5,7 @@ internal static class TensorElement
 {
     internal static int Code<T>() where T : unmanaged
     {
-        if (typeof(T).IsEnum)
-            throw new NotSupportedException("Tensor elements must be numeric primitives, not enums.");
+        if (typeof(T).IsEnum) throw new NotSupportedException("Tensor elements must be numeric primitives, not enums.");
 
         // Keep these IDs aligned with python/common-runtime/native/dtypes.h and python/common-runtime/src/sharpbind_runtime/_abi.py.
         return Type.GetTypeCode(typeof(T)) switch

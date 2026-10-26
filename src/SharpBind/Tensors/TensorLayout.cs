@@ -5,8 +5,7 @@ internal static class TensorLayout
 {
     internal static long Offset(ReadOnlySpan<long> shape, ReadOnlySpan<long> strides, long index, long count)
     {
-        if ((ulong)index >= (ulong)count)
-            throw new IndexOutOfRangeException();
+        if ((ulong)index >= (ulong)count) throw new IndexOutOfRangeException();
 
         long offset = 0;
         // Decode a row-major logical index from the innermost axis outward. Strides are
@@ -23,8 +22,8 @@ internal static class TensorLayout
     {
         // Empty tensors touch no storage; singleton axes never advance an address.
         // Neither imposes a stride constraint on an otherwise contiguous layout.
-        if (length == 0)
-            return true;
+        if (length == 0) return true;
+
         long expected = itemsize;
         for (int i = shape.Length - 1; i >= 0; i--)
         {
