@@ -5,57 +5,55 @@ namespace SharpBind.Generator;
 /// <summary>
 /// Rules needed to generate code for given language.
 /// </summary>
-internal class CodeRules
+internal class CodeRules(string? scopeOpener, string? scopeCloser, int indentSize = 4)
 {
-    internal string ScopeOpener = "{";
-    internal string ScopeCloser = "}";
-    internal int IndentSize = 4;
+    public static CodeRules CSharp { get; } = new("{", "}");
+    public static CodeRules Python { get; } = new(null, null);
 
-    public CodeRules(string scopeOpener, string scopeCloser, int indent_size)
-    {
-        ScopeOpener = scopeOpener;
-        ScopeCloser = scopeCloser;
-        IndentSize = indent_size;
-    }
+    public string? ScopeOpener { get; } = scopeOpener;
+    public string? ScopeCloser { get; } = scopeCloser;
+    public int IndentSize { get; } = indentSize;
 }
 
 /// <summary>
-/// Builds content of a code file. Default parameters are set up for C# language.
+/// Builds a code file using explicit language rules.
 /// </summary>
 internal class CodeBuilder
 {
-    private StringBuilder code = new();
-    private CodeRules style;
+    private readonly StringBuilder code = new();
+    private readonly CodeRules style;
     private int indentLevel = 0;
 
     public CodeBuilder(CodeRules codeRules) => style = codeRules;
 
     /// <summary>
-    /// Produces single line of code.
+    /// Produces a single line of code.
     /// </summary>
     public void Line(string line)
     {
+        if (line.Length == 0) return;
         if (line.Contains('\n') || line.Contains('\r'))
             throw new ArgumentException("Multiple lines provided to single line generator");
 
-        // Do not add indentation for empty lines
-        if (line.Length > 0)
-        {
-            code.Append(' ', indentLevel * style.IndentSize);
-            code.Append(line);
-        }
-
-        code.Append("\n");
+        code.Append(' ', indentLevel * style.IndentSize);
+        code.Append(line);
+        code.Append('\n');
     }
 
+    public void BlankLine() => code.Append('\n');
+
     /// <summary>
-    /// Produces multiple lines of code.
+    /// Produces multiple lines.
     /// </summary>
     public void Lines(string lines)
     {
-        lines.ReplaceLineEndings("\n");
-        foreach (var line in lines.Split('\n'))
-            Line(line);
+        var validLines = lines.ReplaceLineEndings("\n");
+        using var reader = new StringReader(validLines);
+        while (reader.ReadLine() is { } line)
+        {
+            if (line.Length == 0) BlankLine();
+            else Line(line);
+        }
     }
 
     /// <summary>
@@ -64,7 +62,7 @@ internal class CodeBuilder
     public IDisposable ScopeStatement(string header)
     {
         Line(header);
-        Line(style.ScopeOpener);
+        if (style.ScopeOpener is { } opener) Line(opener);
 
         indentLevel++;
         return new Scope(this);
@@ -81,8 +79,8 @@ internal class CodeBuilder
             if (disposed) return;
 
             disposed = true;
-            builder.indentLevel = Math.Max(0, builder.indentLevel - 1);
-            builder.Line(builder.style.ScopeCloser);
+            builder.indentLevel--;
+            if (builder.style.ScopeCloser is { } closer) builder.Line(closer);
         }
     }
 }

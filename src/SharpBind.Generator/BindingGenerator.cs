@@ -31,14 +31,14 @@ internal static class BindingGenerator
         string schema = BindingSchema.Serialize(classes, options.LibraryName, options.PythonModuleName);
         var outputs = new Dictionary<string, string>
         {
-            [Path.Combine(options.NativeDirectory, "NativeExports.g.cs")] = NativeEmitter.EmitSource(classes),
-            [Path.Combine(options.NativeDirectory, "bindings.h")] = NativeEmitter.EmitHeader(classes),
+            [Path.Combine(options.NativeDirectory, "NativeExports.g.cs")] = new NativeEmitter(classes).Emit(),
+            [Path.Combine(options.NativeDirectory, "bindings.h")] = new CEmitter(classes).Emit(),
             [Path.Combine(options.NativeDirectory, "bindings.json")] = schema + "\n"
         };
         if (options.PythonPackageDirectory is { } package)
         {
-            outputs[Path.Combine(package, "_bindings.py")] = PythonEmitter.Emit(classes, schema, options.PythonModuleName!, false);
-            outputs[Path.Combine(package, "_bindings.pyi")] = PythonEmitter.Emit(classes, schema, options.PythonModuleName!, true);
+            outputs[Path.Combine(package, "_bindings.py")] = new PythonEmitter(classes, schema, options.PythonModuleName!, PythonOutputKind.Code).Emit();
+            outputs[Path.Combine(package, "_bindings.pyi")] = new PythonEmitter(classes, schema, options.PythonModuleName!, PythonOutputKind.Stub).Emit();
             outputs[Path.Combine(package, "py.typed")] = "";
             string entry = Path.Combine(package, "__init__.py");
             if (!File.Exists(entry))
