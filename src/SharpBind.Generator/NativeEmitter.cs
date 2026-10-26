@@ -12,14 +12,14 @@ internal class NativeEmitter(ExportClass[] classes)
         if (emitted) throw new InvalidOperationException("An emitter can only render one file.");
         emitted = true;
 
-        code.Lines("""
-            #nullable enable
-            using System;
-            using System.Runtime.CompilerServices;
-            using System.Runtime.InteropServices;
-            using SharpBind.Interop;
-            namespace SharpBind.Generated;
-            """);
+        code.Line("#nullable enable");
+        code.Line("using System;");
+        code.Line("using System.Runtime.CompilerServices;");
+        code.Line("using System.Runtime.InteropServices;");
+        code.Line("using SharpBind.Interop;");
+        code.Line("namespace SharpBind.Generated;");
+        code.BlankLine();
+
         using (code.ScopeStatement("internal static unsafe class NativeExports"))
         {
             code.Line("private static readonly ObjectHandles ObjectHandles = new();");
