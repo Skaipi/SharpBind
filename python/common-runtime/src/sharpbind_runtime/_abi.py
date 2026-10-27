@@ -95,9 +95,8 @@ def _argument_types(method):
         elif result["kind"] in ("scalar", "handle"):
             types.append(ct.POINTER(_element(result)))
         elif result["kind"] in ("array", "string"):
-            types.extend(
-                [ct.POINTER(ct.POINTER(_element(result))), ct.POINTER(ct.c_int64)]
-            )
+            types.append(ct.POINTER(ct.POINTER(_element(result))))
+            types.append(ct.POINTER(ct.c_int64))
         else:
             raise ValueError(f"Unsupported result kind: {result['kind']}")
 

@@ -25,6 +25,32 @@ public class ContractTests
     }
     private string Read(string file) => File.ReadAllText(Path.Combine(directory, file));
 
+    [DataTestMethod]
+    [DataRow(typeof(void), "void", "void", "void", "void", "void")]
+    [DataRow(typeof(string), "string", "byte", "uint8_t", "c_uint8", "uint8")]
+    [DataRow(typeof(bool), "bool", "byte", "uint8_t", "c_uint8", "bool")]
+    [DataRow(typeof(sbyte), "sbyte", "sbyte", "int8_t", "c_int8", "int8")]
+    [DataRow(typeof(byte), "byte", "byte", "uint8_t", "c_uint8", "uint8")]
+    [DataRow(typeof(short), "short", "short", "int16_t", "c_int16", "int16")]
+    [DataRow(typeof(ushort), "ushort", "ushort", "uint16_t", "c_uint16", "uint16")]
+    [DataRow(typeof(int), "int", "int", "int32_t", "c_int32", "int32")]
+    [DataRow(typeof(uint), "uint", "uint", "uint32_t", "c_uint32", "uint32")]
+    [DataRow(typeof(long), "long", "long", "int64_t", "c_int64", "int64")]
+    [DataRow(typeof(ulong), "ulong", "ulong", "uint64_t", "c_uint64", "uint64")]
+    [DataRow(typeof(float), "float", "float", "float", "c_float", "float32")]
+    [DataRow(typeof(double), "double", "double", "double", "c_double", "float64")]
+    public void ManagedTypesHaveExpectedBindingSpellings(
+        Type type, string managed, string native, string c, string ctypes, string dtype)
+    {
+        var mapped = TypeMapping.Map(type, isResult: false);
+
+        Assert.AreEqual(managed, mapped.ManagedTypeName, "Managed type spelling.");
+        Assert.AreEqual(native, mapped.NativeTypeName, "Native C# type spelling.");
+        Assert.AreEqual(c, mapped.CTypeName, "C type spelling.");
+        Assert.AreEqual(ctypes, mapped.CtypesName, "ctypes type spelling.");
+        Assert.AreEqual(dtype, mapped.NumpyDtype, "NumPy dtype spelling.");
+    }
+
     [TestMethod]
     public void DocumentationAndTypingFilesAreEmitted()
     {

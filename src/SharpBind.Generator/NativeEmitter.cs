@@ -86,9 +86,16 @@ internal class NativeEmitter(ExportClass[] classes)
                 code.Line("*result = TensorInterop.Detach(output);");
             }
             else if (result.IsBuffer)
-                code.Line($"CopiedValues.{(result.Kind == LogicalTypeKind.String ? "WriteString" : "WriteArray")}({call}, result, resultLength, {(result.Logical.Nullable ? "true" : "false")});");
+            {
+                string writer = result.Kind == LogicalTypeKind.String ? "WriteString" : "WriteArray";
+                string nullable = result.Logical.Nullable ? "true" : "false";
+                code.Line($"CopiedValues.{writer}({call}, result, resultLength, {nullable});");
+            }
             else
-                code.Line($"*result = {call}{(result.Logical.Element == LogicalElement.Bool ? " ? (byte)1 : (byte)0" : "")};");
+            {
+                string conversion = result.Logical.Element == LogicalElement.Bool ? " ? (byte)1 : (byte)0" : "";
+                code.Line($"*result = {call}{conversion};");
+            }
         }
         else
             code.Line($"{call};");

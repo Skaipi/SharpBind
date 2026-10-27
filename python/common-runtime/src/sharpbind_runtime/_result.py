@@ -22,9 +22,10 @@ class _Result:
     def arguments(self):
         if self.spec["kind"] == "void":
             return []
-        return [ct.byref(self.output)] + (
-            [ct.byref(self.length)] if self.buffer else []
-        )
+        arguments = [ct.byref(self.output)]
+        if self.buffer:
+            arguments.append(ct.byref(self.length))
+        return arguments
 
     def read(self, library):
         if self.spec["kind"] == "void":

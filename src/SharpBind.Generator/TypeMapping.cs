@@ -9,6 +9,30 @@ internal static class TypeMapping
     private const string TensorViewName = "SharpBind.TensorView`1";
     private const string TensorName = "SharpBind.Tensor`1";
 
+    private static readonly BindingType VoidType = new(
+        Logical: new(
+            Kind: LogicalTypeKind.Void,
+            Element: LogicalElement.Void,
+            Nullable: false),
+        Representation: new(
+            Managed: "void",
+            Native: "void",
+            C: "void",
+            Ctypes: "void",
+            Dtype: "void"));
+
+    private static readonly BindingType StringType = new(
+        Logical: new(
+            Kind: LogicalTypeKind.String,
+            Element: LogicalElement.Utf8,
+            Nullable: false),
+        Representation: new(
+            Managed: "string",
+            Native: "byte",
+            C: "uint8_t",
+            Ctypes: "c_uint8",
+            Dtype: "uint8"));
+
     private static readonly HashSet<string> CSharpKeywords =
     [
         "abstract", "as", "base", "bool", "break", "byte",
@@ -95,16 +119,10 @@ internal static class TypeMapping
         }
 
         if (type == typeof(void))
-            return new(
-                new(LogicalTypeKind.Void, LogicalElement.Void, false),
-                new("void", "void", "void", "void", "void")
-            );
+            return VoidType;
 
         if (type == typeof(string))
-            return new(
-                new(LogicalTypeKind.String, LogicalElement.Utf8, false),
-                new("string", "byte", "uint8_t", "c_uint8", "uint8")
-            );
+            return StringType;
 
         return type.IsArray
             ? MapArray(type)
@@ -178,24 +196,106 @@ internal static class TypeMapping
     private static BindingType MapPrimitive(Type type) =>
         type.FullName switch
         {
-            "System.Boolean" => Scalar(LogicalElement.Bool, "bool", "uint8_t", "c_uint8", "bool", "byte"),
-            "System.SByte" => Scalar(LogicalElement.Int8, "sbyte", "int8_t", "c_int8", "int8"),
-            "System.Byte" => Scalar(LogicalElement.UInt8, "byte", "uint8_t", "c_uint8", "uint8"),
-            "System.Int16" => Scalar(LogicalElement.Int16, "short", "int16_t", "c_int16", "int16"),
-            "System.UInt16" => Scalar(LogicalElement.UInt16, "ushort", "uint16_t", "c_uint16", "uint16"),
-            "System.Int32" => Scalar(LogicalElement.Int32, "int", "int32_t", "c_int32", "int32"),
-            "System.UInt32" => Scalar(LogicalElement.UInt32, "uint", "uint32_t", "c_uint32", "uint32"),
-            "System.Int64" => Scalar(LogicalElement.Int64, "long", "int64_t", "c_int64", "int64"),
-            "System.UInt64" => Scalar(LogicalElement.UInt64, "ulong", "uint64_t", "c_uint64", "uint64"),
-            "System.Single" => Scalar(LogicalElement.Float32, "float", "float", "c_float", "float32"),
-            "System.Double" => Scalar(LogicalElement.Float64, "double", "double", "c_double", "float64"),
+            "System.Boolean" => Scalar(
+                LogicalElement.Bool,
+                managed: "bool",
+                native: "byte",
+                c: "uint8_t",
+                ctypes: "c_uint8",
+                dtype: "bool"),
+
+            "System.SByte" => Scalar(
+                LogicalElement.Int8,
+                managed: "sbyte",
+                c: "int8_t",
+                ctypes: "c_int8",
+                dtype: "int8"),
+
+            "System.Byte" => Scalar(
+                LogicalElement.UInt8,
+                managed: "byte",
+                c: "uint8_t",
+                ctypes: "c_uint8",
+                dtype: "uint8"),
+
+            "System.Int16" => Scalar(
+                LogicalElement.Int16,
+                managed: "short",
+                c: "int16_t",
+                ctypes: "c_int16",
+                dtype: "int16"),
+
+            "System.UInt16" => Scalar(
+                LogicalElement.UInt16,
+                managed: "ushort",
+                c: "uint16_t",
+                ctypes: "c_uint16",
+                dtype: "uint16"),
+
+            "System.Int32" => Scalar(
+                LogicalElement.Int32,
+                managed: "int",
+                c: "int32_t",
+                ctypes: "c_int32",
+                dtype: "int32"),
+
+            "System.UInt32" => Scalar(
+                LogicalElement.UInt32,
+                managed: "uint",
+                c: "uint32_t",
+                ctypes: "c_uint32",
+                dtype: "uint32"),
+
+            "System.Int64" => Scalar(
+                LogicalElement.Int64,
+                managed: "long",
+                c: "int64_t",
+                ctypes: "c_int64",
+                dtype: "int64"),
+
+            "System.UInt64" => Scalar(
+                LogicalElement.UInt64,
+                managed: "ulong",
+                c: "uint64_t",
+                ctypes: "c_uint64",
+                dtype: "uint64"),
+
+            "System.Single" => Scalar(
+                LogicalElement.Float32,
+                managed: "float",
+                c: "float",
+                ctypes: "c_float",
+                dtype: "float32"),
+
+            "System.Double" => Scalar(
+                LogicalElement.Float64,
+                managed: "double",
+                c: "double",
+                ctypes: "c_double",
+                dtype: "float64"),
 
             _ => throw new NotSupportedException(
                 $"Unsupported binding type: {type}.")
         };
 
-    private static BindingType Scalar(LogicalElement element, string managed, string c, string ctypes, string dtype, string? native = null)
-        => new(new(LogicalTypeKind.Scalar, element, false), new(managed, native ?? managed, c, ctypes, dtype));
+    private static BindingType Scalar(
+        LogicalElement element,
+        string managed,
+        string c,
+        string ctypes,
+        string dtype,
+        string? native = null) =>
+        new(
+            Logical: new(
+                Kind: LogicalTypeKind.Scalar,
+                Element: element,
+                Nullable: false),
+            Representation: new(
+                Managed: managed,
+                Native: native ?? managed,
+                C: c,
+                Ctypes: ctypes,
+                Dtype: dtype));
 
     private static void EnsureNumericScalar(BindingType type, string description)
     {

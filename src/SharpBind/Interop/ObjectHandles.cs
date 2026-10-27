@@ -20,7 +20,7 @@ public sealed unsafe class ObjectHandles
     private readonly ConcurrentDictionary<ulong, Entry> Handles = new();
     // Tokens are local to this registry; pair them with a native allocation's identity
     // so another loaded provider cannot accidentally resolve the same token here.
-    private readonly ulong Provider = (ulong)(nuint)NativeMemory.Alloc(1);
+    private readonly ulong Provider = (nuint)NativeMemory.Alloc(1);
     private long nextHandle;
     public SbHandle Add(object value, bool concurrentCalls = false)
     {
@@ -40,11 +40,11 @@ public sealed unsafe class ObjectHandles
 
     private Entry Resolve<T>(SbHandle handle) where T : class
     {
-        return handle.Provider == Provider && Handles.TryGetValue(handle.Token, out var entry) &&
-                       entry.Value is T
-                   ? entry
-                   : throw new ArgumentException(
-                         "Invalid, closed, incorrectly typed, or foreign-provider handle.");
+        if (handle.Provider != Provider) throw new ArgumentException("Foreign provider handle");
+        if (!Handles.TryGetValue(handle.Token, out var entry)) throw new ArgumentException("Closed handle");
+        if (entry.Value is not T) throw new ArgumentException("Incorrectly typed handle");
+
+        return entry;
     }
 
     public sealed class CallLease<T> : IDisposable where T : class

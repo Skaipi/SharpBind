@@ -1,6 +1,9 @@
 namespace SharpBind.Generator;
 
-/// <summary>Renders one C header describing the native ABI and exported declarations.</summary>
+/// <summary>
+/// Renders one C header describing the native ABI and exported declarations.
+/// It can be used by potential C/C++ consumers.
+/// </summary>
 internal class CEmitter(ExportClass[] classes)
 {
     private readonly CodeBuilder code = new(CodeRules.CSharp);

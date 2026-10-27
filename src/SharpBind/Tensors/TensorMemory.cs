@@ -33,7 +33,7 @@ internal static unsafe class TensorMemory
             foreach (long dimension in shape)
                 length = checked(length * dimension);
 
-        nuint bytes = checked((nuint)checked(length * sizeof(T)));
+        nuint bytes = checked((nuint)(length * sizeof(T)));
         void* data = null;
         long* dimensions = null;
         try

@@ -48,8 +48,14 @@ public class BindingGeneratorTests
 
         string native = Path.Combine(directory, "NativeExports.g.cs");
         string bindings = Path.Combine(PackageDirectory, "_bindings.py");
-        string[] outputs = [native, Path.Combine(directory, "bindings.h"), Path.Combine(directory, "bindings.json"),
-            bindings, Path.Combine(PackageDirectory, "_bindings.pyi"), Path.Combine(PackageDirectory, "py.typed")];
+        string[] outputs = [
+            native,
+            Path.Combine(directory, "bindings.h"),
+            Path.Combine(directory, "bindings.json"),
+            bindings,
+            Path.Combine(PackageDirectory, "_bindings.pyi"),
+            Path.Combine(PackageDirectory, "py.typed")
+        ];
         var originals = outputs.ToDictionary(path => path, File.ReadAllText);
         var timestamps = outputs.ToDictionary(path => path, File.GetLastWriteTimeUtc);
         Generate(assembly);
@@ -117,12 +123,12 @@ public class BindingGeneratorTests
     public void ManagedOnlyGenerationDoesNotRequirePythonConfiguration()
     {
         BindingGenerator.Generate(
-        Define(type => Method(type)),
-        Options with
-        {
-            PythonModuleName = null,
-            PythonPackageDirectory = null
-        });
+            Define(type => Method(type)),
+            Options with
+            {
+                PythonModuleName = null,
+                PythonPackageDirectory = null
+            });
         Assert.IsTrue(File.Exists(Path.Combine(directory, "NativeExports.g.cs")));
         Assert.IsTrue(File.Exists(Path.Combine(directory, "bindings.json")));
         Assert.AreEqual(0, Directory.GetFiles(directory, "*.py", SearchOption.AllDirectories).Length);
@@ -183,7 +189,15 @@ public class BindingGeneratorTests
         Generate(valid);
         string path = Path.Combine(directory, "NativeExports.g.cs");
         string original = File.ReadAllText(path);
-        foreach (Type result in new[] { typeof(DateTime), typeof(object), typeof(int[,]), typeof(bool[]), typeof(ReadOnlyTensorView<double>), typeof(TensorView<double>) })
+        foreach (Type result in new[]
+        {
+            typeof(DateTime),
+            typeof(object),
+            typeof(int[,]),
+            typeof(bool[]),
+            typeof(ReadOnlyTensorView<double>),
+            typeof(TensorView<double>)
+        })
         {
             Assert.ThrowsException<NotSupportedException>(() => Generate(Define(type => Method(type, result: result))));
             Assert.AreEqual(original, File.ReadAllText(path));

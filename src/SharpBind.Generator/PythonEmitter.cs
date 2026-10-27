@@ -19,7 +19,7 @@ internal class PythonEmitter(ExportClass[] classes, string schema, string module
     private bool IsStub => outputKind == PythonOutputKind.Stub;
 
     /// <summary>
-    /// Matches a surrogate pair of high and low unicodes.
+    /// Matches an escaped UTF-16 high/low surrogate pair.
     /// </summary>
     private static readonly Regex SurrogatePairRegex = new(@"\\u(D[89ABab][0-9A-Fa-f]{2})\\u(D[C-Fc-f][0-9A-Fa-f]{2})");
 
@@ -182,7 +182,10 @@ internal class PythonEmitter(ExportClass[] classes, string schema, string module
         return BuiltinTypeRegex.Replace(annotations, evaluator);
     }
 
-    /// <summary>Encode C# UTF-16 string. Combines multi unit characters into one Unicode character. For example: \uD83D\uDE00 -> \U0001f60 (😀-emoji)</summary>
+    /// <summary>
+    /// Replaces escaped UTF-16 surrogate pairs with Python Unicode escapes.
+    /// For example, <c>\uD83D\uDE00</c> becomes <c>\U0001f600</c>.
+    /// </summary>
     private static string ReplaceSurrogatePairs(string literal)
     {
         return SurrogatePairRegex.Replace(literal, match =>
