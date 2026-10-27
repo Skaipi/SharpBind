@@ -411,9 +411,9 @@ public class BindingGeneratorTests
     public void NestedClosedTypesDistributeArgumentsToTheirDeclaringTypes()
     {
         Assert.AreEqual("global::System.Collections.Generic.Dictionary<global::System.Int32, global::System.String>.KeyCollection",
-            TypeMapping.CSharpName(typeof(Dictionary<int, string>.KeyCollection)));
+            CSharpTypeNames.Format(typeof(Dictionary<int, string>.KeyCollection)));
         Assert.AreEqual("global::SharpBind.Fixture.GenericContainer<global::System.Int32>.Inner<global::System.Double>",
-            TypeMapping.CSharpName(typeof(Fixture.GenericContainer<int>.Inner<double>)));
+            CSharpTypeNames.Format(typeof(Fixture.GenericContainer<int>.Inner<double>)));
     }
 
     [TestMethod]

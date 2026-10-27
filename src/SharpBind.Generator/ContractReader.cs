@@ -69,7 +69,7 @@ internal static class ContractReader
         string prefix = "sb_" + BindingJson.Hash(new[] { assemblyName, name })[..24];
         var methods = ReadMethods(type, prefix, docs);
         ContractValidator.Lifecycle(type, annotation is not null, methods);
-        return new(name, prefix, TypeMapping.CSharpName(type), methods, docs.Read(declaration), annotation?.ConcurrentCalls ?? false);
+        return new(name, prefix, CSharpTypeNames.Format(type), methods, docs.Read(declaration), annotation?.ConcurrentCalls ?? false);
     }
 
     private static ExportMethod[] ReadMethods(Type type, string prefix, DocumentationReader docs)
