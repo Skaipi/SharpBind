@@ -47,8 +47,7 @@ internal unsafe class TensorStorage<T> : ITensorStorage where T : unmanaged
 
     public void RemoveReference()
     {
-        if (Interlocked.Decrement(ref references) == 0)
-            descriptor.Release(descriptor.Lease);
+        if (Interlocked.Decrement(ref references) == 0) descriptor.Release(descriptor.Lease);
     }
 
     internal TensorDescriptor Export() => TensorMemory.Export(descriptor, this, Shape, Strides);

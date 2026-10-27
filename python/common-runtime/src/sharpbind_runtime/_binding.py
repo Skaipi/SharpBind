@@ -25,10 +25,12 @@ class Library:
         """Execute while prepared inputs and any instance lease remain alive."""
         method = self.methods[entry]
         instance = []
+
         if not method["constructor"] and not method["is_static"]:
             if handle is None or not handle.token:
                 raise RuntimeError("Native instance is closed")
             instance = [handle]
+
         result = _Result(method["result"])
         self.native.call(entry, *instance, *values, *result.arguments())
         return result.read(self.native)

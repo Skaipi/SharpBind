@@ -69,7 +69,7 @@ internal static class ContractReader
         string prefix = "sb_" + BindingJson.Hash(new[] { assemblyName, name })[..24];
         var methods = ReadMethods(type, prefix, docs);
         ContractValidator.Lifecycle(type, annotation is not null, methods);
-        return new(name, prefix, TypeMapping.CSharpName(type), methods, docs.Read(declaration), annotation?.ConcurrentCalls ?? false);
+        return new(name, prefix, CSharpTypeNames.Format(type), methods, docs.Read(declaration), annotation?.ConcurrentCalls ?? false);
     }
 
     private static ExportMethod[] ReadMethods(Type type, string prefix, DocumentationReader docs)
@@ -78,8 +78,8 @@ internal static class ContractReader
         var names = new HashSet<string>(StringComparer.Ordinal);
         foreach (var member in type.GetMethods(Members).Cast<MethodBase>().Concat(type.GetConstructors(Members)))
         {
-            if (AnnotationReader.Read(member) is not { } annotation)
-                continue;
+            if (AnnotationReader.Read(member) is not { } annotation) continue;
+
             var method = ReadMethod(member, annotation, prefix, docs);
             if (!names.Add(method.Name))
                 throw new BindingValidationException($"{type}: duplicate exported member '{method.Name}'; export one constructor and give overloaded methods distinct names.");
@@ -91,12 +91,12 @@ internal static class ContractReader
     private static ExportMethod ReadMethod(MethodBase member, ExportAnnotation annotation, string prefix, DocumentationReader docs)
     {
         ContractValidator.Method(member, annotation);
-        bool constructor = member is ConstructorInfo;
-        string name = constructor ? "__init__" :
-            PythonNames.Identifier(annotation.Name ?? PythonNames.SnakeCase(member.Name));
+        var constructor = member is ConstructorInfo;
+        var name = constructor ? "__init__" : PythonNames.Identifier(annotation.Name ?? PythonNames.SnakeCase(member.Name));
         var arguments = ReadArguments(member);
+        var bindingType = constructor ? ReadResult((ConstructorInfo)member) : ReadResult((MethodInfo)member);
         return new(name, prefix + "_" + BindingJson.Hash(name)[..24], member.Name,
-            constructor, member.IsStatic, ReadResult(member), arguments, docs.Read(Declaration(member), arguments));
+            constructor, member.IsStatic, bindingType, arguments, docs.Read(Declaration(member), arguments));
     }
 
     private static MethodBase Declaration(MethodBase member)
@@ -112,10 +112,17 @@ internal static class ContractReader
             .Single(candidate => candidate.MetadataToken == member.MetadataToken);
     }
 
-    private static BindingType? ReadResult(MethodBase member) =>
-        member is MethodInfo method && method.ReturnType != typeof(void)
-            ? ContractValidator.Map(method.ReturnType, true, new NullabilityInfoContext().Create(method.ReturnParameter).ReadState)
-            : null;
+    private static BindingType ReadResult(MethodInfo method)
+    {
+        var mayReturnNull = new NullabilityInfoContext().Create(method.ReturnParameter).ReadState;
+        return ContractValidator.Map(method.ReturnType, true, mayReturnNull);
+    }
+
+    private static BindingType ReadResult(ConstructorInfo constructor)
+    {
+        var mayReturnNull = NullabilityState.Nullable;
+        return ContractValidator.Map(typeof(void), true, mayReturnNull);
+    }
 
     private static ExportArgument[] ReadArguments(MethodBase member)
     {

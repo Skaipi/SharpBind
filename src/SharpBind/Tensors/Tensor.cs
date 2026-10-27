@@ -40,12 +40,11 @@ public unsafe partial class Tensor<T> : IDisposable where T : unmanaged
 
     internal static Tensor<T> Acquire(TensorDescriptor* descriptor)
     {
-        if (descriptor == null)
-            throw new ArgumentException("Missing tensor descriptor.");
-        var owner = new TensorStorage<T>(*descriptor);
+        if (descriptor == null) throw new ArgumentException("Missing tensor descriptor.");
+
         // Allocate everything before consuming the caller's ownership token.
-        var result = new Tensor<T>(owner);
-        result.storage = owner;
+        var owner = new TensorStorage<T>(*descriptor);
+        var result = new Tensor<T>(owner) { storage = owner };
         descriptor->Lease = null;
         descriptor->Release = null;
         return result;
@@ -53,22 +52,23 @@ public unsafe partial class Tensor<T> : IDisposable where T : unmanaged
 
     /// <summary>Element count. Metadata remains available after disposal or transfer.</summary>
     public long Length => metadata.Length;
+
     /// <summary>Immutable logical dimensions.</summary>
     public ReadOnlySpan<long> Shape => metadata.Shape;
+
     /// <summary>Immutable signed byte strides.</summary>
     public ReadOnlySpan<long> Strides => metadata.Strides;
+
     /// <summary>Whether the exporter disallows writing.</summary>
     public bool IsReadOnly => metadata.IsReadOnly;
+
     /// <summary>Whether the elements have C-contiguous layout.</summary>
     public bool IsContiguous => metadata.IsContiguous;
+
     /// <summary>Whether this handle has been disposed or transferred.</summary>
     public bool IsDisposed
     {
-        get
-        {
-            lock (gate)
-                return storage is null;
-        }
+        get { lock (gate) return storage is null; }
     }
 
     /// <summary>Create another independently disposable handle to the same storage.</summary>
@@ -87,16 +87,8 @@ public unsafe partial class Tensor<T> : IDisposable where T : unmanaged
     /// <summary>Access flattened logical elements. Writing requires writable, contiguous storage.</summary>
     public T this[long index]
     {
-        get
-        {
-            lock (gate)
-                return GetStorage().ReadView()[index];
-        }
-        set
-        {
-            lock (gate)
-                GetStorage().WriteView()[index] = value;
-        }
+        get { lock (gate) return GetStorage().ReadView()[index]; }
+        set { lock (gate) GetStorage().WriteView()[index] = value; }
     }
 
     /// <summary>Read through a borrowed view while a temporary reference keeps storage alive.</summary>
@@ -154,7 +146,6 @@ public unsafe partial class Tensor<T> : IDisposable where T : unmanaged
     /// <summary>Release an abandoned owner.</summary>
     ~Tensor()
     {
-        if (storage is not null)
-            ReleaseReference();
+        if (storage is not null) ReleaseReference();
     }
 }

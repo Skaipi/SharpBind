@@ -89,15 +89,14 @@ def _argument_types(method):
 
     # Results point to caller-provided storage that the native function fills.
     result = method["result"]
-    if result:
+    if result["kind"] != "void":
         if result["kind"] == "tensor":
             types.append(ct.c_void_p)
         elif result["kind"] in ("scalar", "handle"):
             types.append(ct.POINTER(_element(result)))
         elif result["kind"] in ("array", "string"):
-            types.extend(
-                [ct.POINTER(ct.POINTER(_element(result))), ct.POINTER(ct.c_int64)]
-            )
+            types.append(ct.POINTER(ct.POINTER(_element(result))))
+            types.append(ct.POINTER(ct.c_int64))
         else:
             raise ValueError(f"Unsupported result kind: {result['kind']}")
 

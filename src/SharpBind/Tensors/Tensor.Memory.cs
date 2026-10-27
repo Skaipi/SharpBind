@@ -39,8 +39,7 @@ public unsafe partial class Tensor<T>
     {
         public override Span<T> GetSpan()
         {
-            lock (tensor.gate)
-                return new Span<T>(tensor.GetStorage().Data, length);
+            lock (tensor.gate) return new Span<T>(tensor.GetStorage().Data, length);
         }
 
         public override MemoryHandle Pin(int elementIndex = 0)
@@ -50,6 +49,7 @@ public unsafe partial class Tensor<T>
                 var owner = tensor.GetStorage();
                 if ((uint)elementIndex > (uint)length)
                     throw new ArgumentOutOfRangeException(nameof(elementIndex));
+
                 // Native storage cannot move, so pinning needs a lifetime reference,
                 // not a GC pin. Each MemoryHandle gets its own independently retained owner.
                 var retained = tensor.Retain();
@@ -65,13 +65,9 @@ public unsafe partial class Tensor<T>
             }
         }
 
-        public override void Unpin()
-        {
-            // MemoryHandle.Dispose calls its PinOwner.Unpin, not this shared manager.
-        }
-        protected override void Dispose(bool disposing)
-        {
-        }
+        // MemoryHandle.Dispose calls its PinOwner.Unpin, not this shared manager.
+        public override void Unpin() { }
+        protected override void Dispose(bool disposing) { }
     }
 
     private class PinOwner(Tensor<T> tensor) : IPinnable

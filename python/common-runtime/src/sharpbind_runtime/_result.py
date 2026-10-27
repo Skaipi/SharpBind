@@ -1,7 +1,7 @@
 """Result slots and the transfer or release of returned native storage."""
 
 import ctypes as ct
-from ._abi import _element
+from ._abi import _element, Descriptor
 from ._conversion import MANAGED_ARRAY_LIMIT
 
 
@@ -9,12 +9,10 @@ class _Result:
     def __init__(self, spec):
         self.spec = spec
         self.length = ct.c_int64()
-        self.buffer = spec is not None and spec["kind"] in ("array", "string")
-        if spec is None:
+        self.buffer = spec["kind"] in ("array", "string")
+        if spec["kind"] == "void":
             self.output = None
         elif spec["kind"] == "tensor":
-            from ._abi import Descriptor
-
             self.output = Descriptor()
         else:
             self.output = (
@@ -22,14 +20,15 @@ class _Result:
             )
 
     def arguments(self):
-        if self.spec is None:
+        if self.spec["kind"] == "void":
             return []
-        return [ct.byref(self.output)] + (
-            [ct.byref(self.length)] if self.buffer else []
-        )
+        arguments = [ct.byref(self.output)]
+        if self.buffer:
+            arguments.append(ct.byref(self.length))
+        return arguments
 
     def read(self, library):
-        if self.spec is None:
+        if self.spec["kind"] == "void":
             return None
         if self.spec["kind"] == "tensor":
             from ._borrow import adapter

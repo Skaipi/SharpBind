@@ -11,11 +11,11 @@ internal sealed class DocumentationReader(Assembly assembly, bool strict)
 
     private static Dictionary<string, XElement> Load(Assembly assembly)
     {
-        if (assembly.IsDynamic)
-            return [];
+        if (assembly.IsDynamic) return [];
+
         string path = Path.ChangeExtension(assembly.Location, ".xml");
-        if (!File.Exists(path))
-            return [];
+        if (!File.Exists(path)) return [];
+
         try
         {
             var members = new Dictionary<string, XElement>(StringComparer.Ordinal);
